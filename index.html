@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Steal a Brainrot</title>
+<style>
+  html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; background:#f3f6ff; user-select:none; -webkit-user-select:none; }
+  #game-container { position:relative; }
+  #game { display:flex; gap:10px; padding:12px; box-sizing:border-box; }
+  canvas { background: linear-gradient(#bfe1ff,#ffffff); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.15); }
+  #ui { width:340px; display:flex; flex-direction:column; gap:10px; }
+  .panel { background:white; padding:10px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.06); }
+  h2 { margin:4px 0 8px 0; font-size:18px;}
+  .row { display:flex; justify-content:space-between; align-items:center; margin:6px 0; }
+  button { padding:8px 10px; border:0; border-radius:6px; cursor:pointer; background:#3b82f6; color:white; }
+  button.secondary { background:#94a3b8; }
+  #rpsChoices { display:flex; gap:6px; margin-top:6px; }
+  .small { font-size:13px; color:#333; }
+  .big { font-weight:700; font-size:16px; }
+  #log { height:140px; overflow:auto; background:#f9fafb; padding:8px; border-radius:6px; font-size:13px; }
+  .playerBox { display:flex; gap:8px; align-items:center; }
+  .avatar { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700; color:white; }
+  .p1 { background:#ff7ab6; }
+  .p2 { background:#7c3aed; }
+  .stat { font-size:14px; }
+  #help { font-size:13px; color:#475569; }
+  footer { margin-top:8px; font-size:12px; color:#6b7280; }
+
+  /* Touch Controls Styles */
+  .touch-controls { position:absolute; bottom:20px; display:grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px; gap: 8px; opacity: 0.6; }
+  #p1-controls { left: 25px; }
+  #p2-controls { right: 365px; }
+  .touch-btn { background: rgba(0,0,0,0.5); color:white; border-radius:10px; display:flex; justify-content:center; align-items:center; font-size:24px; cursor:pointer; }
+  #p1-up { grid-column: 2; grid-row: 1; }
+  #p1-left { grid-column: 1; grid-row: 2; }
+  #p1-down { grid-column: 2; grid-row: 2; }
+  #p1-right { grid-column: 3; grid-row: 2; }
+  #p1-action { grid-column: 3; grid-row: 1; font-size:16px; background-color: #ff7ab6;}
+  #p2-up { grid-column: 2; grid-row: 1; }
+  #p2-left { grid-column: 1; grid-row: 2; }
+  #p2-down { grid-column: 2; grid-row: 2; }
+  #p2-right { grid-column: 3; grid-row: 2; }
+  #p2-action { grid-column: 1; grid-row: 1; font-size:16px; background-color: #7c3aed;}
+  
+  /* Start Screen Styles */
+  #start-screen { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; }
+  #start-button { font-size: 24px; padding: 20px 40px; border-radius: 12px; background: #4ade80; color: white; border: none; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="game-container">
+
+  <div id="start-screen">
+    <button id="start-button">게임 시작!</button>
+  </div>
+
+  <div id="game">
+    <canvas id="world" width="900" height="560"></canvas>
+    <div id="ui">
+        <div class="panel">
+          <h2>Players</h2>
+          <div class="row">
+            <div class="playerBox">
+              <div class="avatar p1">Ian</div>
+              <div>
+                <div class="small" id="p1-name-desc">Ian (W A S D)</div>
+                <div class="stat" id="p1Balance">$0 • Brains: <span id="p1Brains">0</span></div>
+              </div>
+            </div>
+            <div> <button id="p1Sell" class="secondary">Sell Brain</button> </div>
+          </div>
+          <div class="row">
+            <div class="playerBox">
+              <div class="avatar p2">P2</div>
+              <div>
+                <div class="small" id="p2-name-desc">Player 2 (Arrows)</div>
+                <div class="stat" id="p2Balance">$0 • Brains: <span id="p2Brains">0</span></div>
+              </div>
+            </div>
+            <div> <button id="p2Sell" class="secondary">Sell Brain</button> </div>
+          </div>
+          <div id="help">Press <strong>E</strong> (Ian) or <strong>/</strong> (P2) to start a steal mini-game.<br>In mini-game both players choose Rock/Paper/Scissors.</div>
+        </div>
+        <div class="panel">
+          <h2>Shop & Upgrades</h2>
+          <div class="row"> <div> Passive income tick every <span id="tickSec">3</span>s. </div> </div>
+          <div class="row"> <div>Income Upgrade (+1 per tick)</div> <div><button id="buyUpgrade">Buy ($150)</button></div> </div>
+          <div class="row"> <div>Spawn rate: <span id="spawnRateSec">4</span>s</div> <div><button id="fasterSpawn" class="secondary">Faster Spawn ($120)</button></div> </div>
+        </div>
+        <div class="panel">
+          <h2>Steal Mini-Game</h2>
+          <div class="small">When a steal is started both players must choose within 6 seconds.</div>
+          <div id="rpsArea">
+            <div id="rpsStatus" class="small">No steal active.</div>
+            <div id="rpsChoices" style="display:none;"> <button data-choice="rock">Rock</button> <button data-choice="paper">Paper</button> <button data-choice="scissors">Scissors</button> </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Game Log</h2>
+          <div id="log"></div>
+          <footer>Save this file & open in browser. Have fun!</footer>
+        </div>
+    </div>
+  </div>
+
+  <div id="p1-controls" class="touch-controls">
+    <div id="p1-up" class="touch-btn">▲</div> <div id="p1-left" class="touch-btn">◀</div> <div id="p1-down" class="touch-btn">▼</div> <div id="p1-right" class="touch-btn">▶</div> <div id="p1-action" class="touch-btn">Steal</div>
+  </div>
+  <div id="p2-controls" class="touch-controls">
+    <div id="p2-up" class="touch-btn">▲</div> <div id="p2-left" class="touch-btn">◀</div> <div id="p2-down" class="touch-btn">▼</div> <div id="p2-right" class="touch-btn">▶</div> <div id="p2-action" class="touch-btn">Steal</div>
+  </div>
+
+</div>
+
+<script>
+/* Steal a Brainrot — simple 2-player local game
+   MODIFIED to include character names.
+*/
+
+const canvas = document.getElementById('world');
+const ctx = canvas.getContext('2d');
+
+// --- 내장 사운드 데이터 ---
+const sounds = {
+  collect: new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'+'VvT19FAAAAAEcAnwB9AJsAgACLAI0AlACZAKQApgCpAKsArQCvALMAtQC5ALsAvwDBAMMAxQDHAMkAygDLANAA0QDRANMA1ADVANcA2QDbAN0A3wDiAOMA5ADnAOoA7ADvAPEA9gD6AP8BCgEUAR4BIgEoATIBNwFAAUQBSQFOAVIBWAFbAV8BYgFnAWsBdAF5AX8BhAGLAZABlgGgAaMBpwGoAasBsAG1AbsBwQHHAcwB0QHVAdkB3QHfAeEB5QHqAe8B9gH/AgYCEQIXAiACJAImAigCLgI4AkMCCwJFAkoCTwJVAloCXgJjAmsCcQJ3An0ChgKIApMClAKYAqICrAKyArsCwALFAsoCzQLSAtUC2wLgAuYC6gLyAvoDAAMLAxIDGQMiAykDMgM9A0YDSANRA1gDYwNsA3YDfQONA5MDlgOaA58DoQOhA6MDoQOiA6I='),
+  click: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAC/AAIA/wADAP8ABwAAAAEAAAAAAAAA'),
+  win: new Audio('data:audio/wav;base64,UklGRoACAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YWyAAgAAgD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/AD8APwA/'),
+  bgm: null,
+};
+
+// sounds.bgm = new Audio('bgm.mp3');
+// if (sounds.bgm) sounds.bgm.loop = true;
+
+function playSound(soundName) {
+  if (sounds[soundName]) {
+    sounds[soundName].currentTime = 0;
+    sounds[soundName].play().catch(e => console.log("Audio play failed:", e));
+  }
+}
+
+const ui = {
+  p1Balance: document.getElementById('p1Balance'), p2Balance: document.getElementById('p2Balance'),
+  p1Brains: document.getElementById('p1Brains'), p2Brains: document.getElementById('p2Brains'),
+  log: document.getElementById('log'), rpsStatus: document.getElementById('rpsStatus'),
+  rpsChoices: document.getElementById('rpsChoices'), tickSec: document.getElementById('tickSec'),
+  spawnRateSec: document.getElementById('spawnRateSec'),
+  p1NameDesc: document.getElementById('p1-name-desc'),
+  p2NameDesc: document.getElementById('p2-name-desc'),
+};
+
+function log(msg){
+  const d = new Date();
+  ui.log.innerHTML = `<div>[${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}] ${msg}</div>` + ui.log.innerHTML;
+}
+
+const state = {
+  players: {
+    p1: { name: 'Ian', x:120, y:260, color:'#ff7ab6', keys:{up:'w',left:'a',down:'s',right:'d'}, balance:50, brains:0, move:{up:false, down:false, left:false, right:false} },
+    p2: { name: 'Player 2', x:780, y:300, color:'#7c3aed', keys:{up:'ArrowUp',left:'ArrowLeft',down:'ArrowDown',right:'ArrowRight'}, balance:50, brains:0, move:{up:false, down:false, left:false, right:false} }
+  },
+  brains: [], spawnInterval: 4000, tickInterval: 3000, passiveIncomePerBrain: 1, upgradeCost: 150,
+  fasterSpawnCost: 120, lastSpawn: 0, lastTick: 0, stealActive: false, stealTimer: 0,
+  stealTimeout: 6000, stealStarter: null, rpsChoices: { p1:null, p2:null }
+};
+
+// 이름 업데이트
+document.querySelector('.playerBox .avatar.p1').innerText = state.players.p1.name.slice(0, 3);
+ui.p1NameDesc.innerText = `${state.players.p1.name} (W A S D)`;
+document.querySelector('#help strong').innerText = `E (${state.players.p1.name})`;
+
+
+function rand(min,max){ return Math.random()*(max-min)+min; }
+function distance(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+
+function spawnBrain(){
+  const types = [ {name:'Common', value:1, color:'#ffd166'}, {name:'Rare', value:4, color:'#06d6a0'}, {name:'Epic', value:12, color:'#118ab2'} ];
+  let r = Math.random(); let t = types[0];
+  if(r>0.95) t = types[2]; else if(r>0.8) t = types[1];
+  const brain = { x: rand(80,820), y: rand(40,520), type: t.name, color: t.color, value: t.value, id: Date.now()+Math.random() };
+  state.brains.push(brain);
+}
+
+function updateUI(){
+  ui.p1Balance.innerText = `$${state.players.p1.balance} • Brains: `; ui.p2Balance.innerText = `$${state.players.p2.balance} • Brains: `;
+  ui.p1Brains.innerText = state.players.p1.brains; ui.p2Brains.innerText = state.players.p2.brains;
+  ui.tickSec.innerText = Math.round(state.tickInterval/1000); ui.spawnRateSec.innerText = Math.round(state.spawnInterval/1000);
+}
+
+document.getElementById('p1Sell').addEventListener('click', ()=> {
+  playSound('click'); if(state.players.p1.brains <= 0){ log(`${state.players.p1.name} has no brains to sell`); return; }
+  state.players.p1.brains--; state.players.p1.balance +=  Math.floor(5 * 0.6 * 10)/10 + 5;
+  log(`${state.players.p1.name} sold one brain!`); updateUI();
+});
+document.getElementById('p2Sell').addEventListener('click', ()=> {
+  playSound('click'); if(state.players.p2.brains <= 0){ log(`${state.players.p2.name} has no brains to sell`); return; }
+  state.players.p2.brains--; state.players.p2.balance += Math.floor(5 * 0.6 * 10)/10 + 5;
+  log(`${state.players.p2.name} sold one brain!`); updateUI();
+});
+
+document.getElementById('buyUpgrade').addEventListener('click', ()=> {
+  playSound('click'); if(state.players.p1.balance + state.players.p2.balance < state.upgradeCost){ log('Not enough joint money to buy upgrade. Try collecting brains!'); return; }
+  if(state.players.p1.balance >= state.upgradeCost){ state.players.p1.balance -= state.upgradeCost; } else { state.players.p2.balance -= state.upgradeCost; }
+  state.passiveIncomePerBrain += 1; log('Bought passive income upgrade! +1 per brain per tick.'); updateUI();
+});
+document.getElementById('fasterSpawn').addEventListener('click', ()=> {
+  playSound('click'); if(state.players.p1.balance + state.players.p2.balance < state.fasterSpawnCost){ log('Not enough joint money to speed spawns.'); return; }
+  if(state.players.p2.balance >= state.fasterSpawnCost){ state.players.p2.balance -= state.fasterSpawnCost; } else { state.players.p1.balance -= state.fasterSpawnCost; }
+  state.spawnInterval = Math.max(1500, state.spawnInterval - 1000); log('Spawn rate increased!'); updateUI();
+});
+
+function handleKeyDown(e){
+    const p1 = state.players.p1; const p2 = state.players.p2;
+    if (e.key === p1.keys.up) p1.move.up = true; if (e.key === p1.keys.down) p1.move.down = true; if (e.key === p1.keys.left) p1.move.left = true; if (e.key === p1.keys.right) p1.move.right = true;
+    if (e.key === p2.keys.up) p2.move.up = true; if (e.key === p2.keys.down) p2.move.down = true; if (e.key === p2.keys.left) p2.move.left = true; if (e.key === p2.keys.right) p2.move.right = true;
+    if(e.key === 'e' || e.key === 'E'){ startSteal('p1'); } if(e.key === '/'){ startSteal('p2'); }
+    if(state.stealActive){
+      if(['1','2','3'].includes(e.key)){ const map = {'1':'rock','2':'paper','3':'scissors'}; state.rpsChoices.p1 = map[e.key]; log(`${state.players.p1.name} chose ${map[e.key]}`); }
+      if(['7','8','9'].includes(e.key)){ const map2 = {'7':'rock','8':'paper','9':'scissors'}; state.rpsChoices.p2 = map2[e.key]; log(`${state.players.p2.name} chose ${map2[e.key]}`); }
+      if(state.rpsChoices.p1 && state.rpsChoices.p2){ clearTimeout(state.rpsTimeout); finishSteal(); }
+    }
+}
+function handleKeyUp(e){
+    const p1 = state.players.p1; const p2 = state.players.p2;
+    if (e.key === p1.keys.up) p1.move.up = false; if (e.key === p1.keys.down) p1.move.down = false; if (e.key === p1.keys.left) p1.move.left = false; if (e.key === p1.keys.right) p1.move.right = false;
+    if (e.key === p2.keys.up) p2.move.up = false; if (e.key === p2.keys.down) p2.move.down = false; if (e.key === p2.keys.left) p2.move.left = false; if (e.key === p2.keys.right) p2.move.right = false;
+}
+window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp);
+
+function setupTouchControls() {
+    const controls = { 'p1-up': { player: 'p1', dir: 'up' }, 'p1-down': { player: 'p1', dir: 'down' }, 'p1-left': { player: 'p1', dir: 'left' }, 'p1-right': { player: 'p1', dir: 'right' }, 'p2-up': { player: 'p2', dir: 'up' }, 'p2-down': { player: 'p2', dir: 'down' }, 'p2-left': { player: 'p2', dir: 'left' }, 'p2-right': { player: 'p2', dir: 'right' }, };
+    for (const [id, control] of Object.entries(controls)) {
+        const el = document.getElementById(id);
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); state.players[control.player].move[control.dir] = true; }, { passive: false });
+        el.addEventListener('touchend', (e) => { e.preventDefault(); state.players[control.player].move[control.dir] = false; });
+    }
+    document.getElementById('p1-action').addEventListener('touchstart', (e) => { e.preventDefault(); startSteal('p1'); });
+    document.getElementById('p2-action').addEventListener('touchstart', (e) => { e.preventDefault(); startSteal('p2'); });
+}
+
+function startSteal(starter){
+  if(state.stealActive){ log('A steal mini-game is already running!'); return; }
+  playSound('click'); state.stealActive = true; state.stealStarter = starter; state.stealTimer = state.stealTimeout;
+  state.rpsChoices.p1 = null; state.rpsChoices.p2 = null;
+  ui.rpsStatus.innerText = `${state.players[starter].name} started a steal! Choose R/P/S to try to win.`;
+  ui.rpsChoices.style.display = 'flex'; state.rpsTimeout = setTimeout(()=> finishSteal(), state.stealTimeout);
+}
+
+ui.rpsChoices.querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click', () => {
+    playSound('click'); if(!state.stealActive) return;
+    const who = prompt(`Who is choosing? Type '1' for ${state.players.p1.name} or '2' for ${state.players.p2.name}`);
+    if(who !== '1' && who !== '2') return; const playerKey = who === '1' ? 'p1' : 'p2';
+    state.rpsChoices[playerKey] = b.dataset.choice; log(`${state.players[playerKey].name} chose ${b.dataset.choice}`);
+    if(state.rpsChoices.p1 && state.rpsChoices.p2){ clearTimeout(state.rpsTimeout); finishSteal(); }
+  });
+});
+
+function beat(a,b){
+  if(a===b) return 0; if(a==='rock' && b==='scissors') return 1; if(a==='paper' && b==='rock') return 1; if(a==='scissors' && b==='paper') return 1;
+  return -1;
+}
+
+function finishSteal(){
+  if(!state.stealActive) return; state.stealActive = false; ui.rpsChoices.style.display='none';
+  const a = state.rpsChoices.p1, b = state.rpsChoices.p2;
+  if(!a || !b){ ui.rpsStatus.innerText = 'Steal cancelled (someone did not choose).'; log('Steal cancelled (no choice).'); return; }
+  const result = beat(a,b);
+  if(result === 0){ ui.rpsStatus.innerText = 'Tie! No brains stolen.'; log('Steal ended in a tie.'); return; }
+  const winnerKey = result===1 ? 'p1' : 'p2'; const loserKey = winnerKey==='p1' ? 'p2' : 'p1';
+  const winnerName = state.players[winnerKey].name;
+  const loserName = state.players[loserKey].name;
+  if(state.players[loserKey].brains <= 0){ ui.rpsStatus.innerText = `Winner: ${winnerName}, but ${loserName} has no brains to steal.`; log(`${winnerName} won but the other had no brains.`); return; }
+  playSound('win'); state.players[loserKey].brains -= 1; state.players[winnerKey].brains += 1;
+  ui.rpsStatus.innerText = `${winnerName} wins and steals 1 brain!`; log(`${winnerName} won the steal and stole 1 brain!`); updateUI();
+}
+
+let lastTime = performance.now();
+function gameLoop(time){
+  const dt = time - lastTime; lastTime = time;
+  if(time - state.lastSpawn > state.spawnInterval){ spawnBrain(); state.lastSpawn = time; }
+  if(time - state.lastTick > state.tickInterval){
+    state.lastTick = time;
+    ['p1','p2'].forEach(k=>{ const p = state.players[k]; const income = Math.floor(p.brains * state.passiveIncomePerBrain); p.balance += income; });
+    updateUI();
+  }
+  const speed = 160 * (dt/1000); const p1 = state.players.p1; const p2 = state.players.p2;
+  if(p1.move.up) p1.y -= speed; if(p1.move.down) p1.y += speed; if(p1.move.left) p1.x -= speed; if(p1.move.right) p1.x += speed;
+  if(p2.move.up) p2.y -= speed; if(p2.move.down) p2.y += speed; if(p2.move.left) p2.x -= speed; if(p2.move.right) p2.x += speed;
+  [p1,p2].forEach(p=>{ p.x = Math.max(30, Math.min(canvas.width-30, p.x)); p.y = Math.max(30, Math.min(canvas.height-30, p.y)); });
+  for(let i=state.brains.length-1;i>=0;i--){
+    const b = state.brains[i];
+    if(Math.hypot(b.x-p1.x,b.y-p1.y) < 28){ playSound('collect'); p1.brains++; p1.balance += b.value; log(`${p1.name} collected a ${b.type} brain!`); state.brains.splice(i,1); updateUI(); continue; }
+    if(Math.hypot(b.x-p2.x,b.y-p2.y) < 28){ playSound('collect'); p2.brains++; p2.balance += b.value; log(`${p2.name} collected a ${b.type} brain!`); state.brains.splice(i,1); updateUI(); continue; }
+  }
+  ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(0,0,canvas.width,40);
+  ctx.fillStyle = '#071b2f'; ctx.font = '13px Arial'; ctx.fillText(`Collect brains! Press E (${state.players.p1.name}) or / (${state.players.p2.name}) to start steal mini-game.`, 12, 26);
+  state.brains.forEach(b=>{ ctx.beginPath(); ctx.fillStyle = b.color; ctx.ellipse(b.x, b.y, 14, 18, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#333'; ctx.font = '10px Arial'; ctx.fillText(b.type[0], b.x-4, b.y+4); });
+  
+  // 플레이어 이름으로 그리기
+  drawPlayer(p1, state.players.p1.name);
+  drawPlayer(p2, state.players.p2.name);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(canvas.width-240, 6, 230, 36);
+  ctx.fillStyle = '#111827'; ctx.font = '14px Arial';
+  ctx.fillText(`${state.players.p1.name} $${state.players.p1.balance} Brains:${state.players.p1.brains}`, canvas.width-230, 28);
+  ctx.fillText(`${state.players.p2.name} $${state.players.p2.balance} Brains:${state.players.p2.brains}`, canvas.width-115, 28);
+
+  requestAnimationFrame(gameLoop);
+}
+function drawPlayer(p,label){
+  ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.ellipse(p.x, p.y+22, 22, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.fillStyle = p.color; ctx.ellipse(p.x, p.y, 20, 24, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.fillRect(p.x-7, p.y-6, 5,6); ctx.fillRect(p.x+2, p.y-6, 5,6);
+  ctx.fillStyle = '#333'; ctx.fillRect(p.x-6, p.y-3, 2,2); ctx.fillRect(p.x+3, p.y-3, 2,2);
+  ctx.fillStyle = '#fff'; ctx.font = '12px Arial'; ctx.fillText(label, p.x-14, p.y+36);
+}
+
+//--- 게임 시작 로직 ---
+function initializeGame() {
+    setupTouchControls();
+    updateUI();
+
+    const startScreen = document.getElementById('start-screen');
+    const startButton = document.getElementById('start-button');
+    startButton.addEventListener('click', () => {
+        if (sounds.bgm) {
+            sounds.bgm.play();
+        }
+        startScreen.style.display = 'none';
+        for(let i=0;i<6;i++) spawnBrain();
+        requestAnimationFrame(gameLoop);
+    });
+}
+
+initializeGame();
+
+window.addEventListener('keydown',(e)=>{
+  if(e.key === 'r'){ state.players.p1.balance = 50; state.players.p1.brains = 0; state.players.p2.balance = 50; state.players.p2.brains = 0; log('Game reset (balances).'); updateUI(); }
+  if(e.key === 'b'){ spawnBrain(); log('Spawned a brain.'); }
+});
+</script>
+</body>
+</html>
